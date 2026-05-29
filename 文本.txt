@@ -1,0 +1,81 @@
+markup"] = mk
+    api("editMessageText", p)
+
+def ans(qid): api("answerCallbackQuery", {"callback_query_id": qid})
+
+# ==================== 关键词 ====================
+KW_RU = {
+    "цена": "smart_price", "цену": "smart_price", "сколько": "smart_price", "стоимость": "smart_price",
+    "дорого": "smart_price", "дешево": "smart_price", "прайс": "smart_price", "доллар": "smart_price",
+    "логистика": "m3", "доставка": "m3", "перевозка": "m3", "закупка": "m3", "покупка": "m3",
+    "аренда": "m4", "зонт": "m4", "повербанк": "m4", "самокат": "m4",
+    "печать": "m5", "печатать": "m5", "копия": "m5",
+    "курс": "m2", "бизнес": "m2", "консультация": "m2", "ppt": "m2", "презентация": "m2",
+    "студент": "m1", "первокурсник": "m1", "общежитие": "m1", "виза": "m1", "документ": "m1",
+    "контакт": "smart_contact", "связаться": "smart_contact", "оператор": "smart_contact",
+}
+
+KW_ZH = {
+    "价格": "smart_price", "多少钱": "smart_price", "费用": "smart_price", "报价": "smart_price",
+    "物流": "m3", "快递": "m3", "运输": "m3", "代购": "m3",
+    "租赁": "m4", "租": "m4", "雨伞": "m4", "充电宝": "m4", "滑板车": "m4",
+    "打印": "m5", "复印": "m5", "证件照": "m5",
+    "课程": "m2", "商业": "m2", "咨询": "m2", "课件": "m2", "ppt": "m2",
+    "新生": "m1", "入学": "m1", "宿舍": "m1", "报到": "m1",
+    "联系": "smart_contact", "客服": "smart_contact", "人工": "smart_contact", "运营者": "smart_contact",
+}
+
+def match_kw(text, lang):
+    t = text.lower()
+    d = KW_RU if lang == 0 else KW_ZH
+    for k, v in d.items():
+        if k in t: return v
+    return None
+
+# ==================== 转发给运营者 ====================
+def fwd(cid, u, fn, text, lang):
+    ln = "俄语" if lang == 0 else "中文"
+    tag = f"@{u}" if u else fn
+    send(ADMIN_ID, f"📩 新用户消息\n👤 用户: {tag}\n🆔 ID: {cid}\n🌐 语言: {ln}\n⏰ 时间: {time.strftime('%H:%M:%S')}\n💬 内容:\n{text}")
+
+# ==================== 消息处理 ====================
+def handle(upd):
+    if "message" in upd:
+        m = upd["message"]
+        c = m["chat"]["id"]
+        t = m.get("text", "")
+        u = m.get("from", {}).get("username", "")
+        fn = m.get("from", {}).get("first_name", "")
+        l = get_lang(c)
+
+        print(f"[LOG] {time.strftime('%H:%M:%S')} | User:{c} | {t[:50]}")
+
+        if t == "/start": send(c, gt("start", l), kb_lang())
+        elif t == "/menu": send(c, gt("menu_title", l), kb_main(l))
+        elif t == "/help": send(c, gt("help", l), kb_back(l))
+        elif t == "/about": send(c, gt("about", l), kb_back(l))
+        elif t == "/lang": send(c, gt("lang_prompt", l), kb_lang())
+        else:
+            a = match_kw(t, l)
+            if a == "smart_price": send(c, gt("smart_price", l)); fwd(c, u, fn, f"[询价] {t}", l)
+            elif a == "smart_contact": send(c, gt("smart_contact", l)); fwd(c, u, fn, f"[联系] {t}", l)
+            elif a == "m1": send(c, gt("m1_title", l), kb_m1(l)); fwd(c, u, fn, f"[新生咨询] {t}", l)
+            elif a == "m2": send(c, gt("m2_title", l), kb_m2(l)); fwd(c, u, fn, f"[商业服务] {t}", l)
+            elif a == "m3": send(c, gt("m3_common", l) + f"\n\n{gt('m3_title', l)}", kb_m3(l)); fwd(c, u, fn, f"[跨境物流] {t}", l)
+            elif a == "m4": send(c, gt("m4_title", l), kb_m4(l)); fwd(c, u, fn, f"[物品租赁] {t}", l)
+            elif a == "m5": send(c, gt("m5_title", l), kb_m5(l)); fwd(c, u, fn, f"[打印服务] {t}", l)
+            else: send(c, gt("smart_unknown", l)); fwd(c, u, fn, f"[未知] {t}", l)
+
+    elif "callback_query" in upd:
+        q = upd["callback_query"]; ans(q["id"])
+        d = q["data"]; m = q["message"]
+        c = m["chat"]["id"]; mid = m["message_id"]; l = get_lang(c)
+
+        if d == "lang_0": user_lang[c] = 0; send(c, gt("lang_ok", 0), kb_main(0))
+        elif d == "lang_1": user_lang[c] = 1; send(c, gt("lang_ok", 1), kb_main(1))
+        elif d == "menu": edit(c, mid, gt("menu_title", l), kb_main(l))
+        elif d == "m1": edit(c, mid, gt("m1_title", l), kb_m1(l))
+        elif d == "m1_1": edit(c, mid, gt("m1_sub1", l), kb_back(l))
+        elif d == "m1_2": edit(c, mid, gt("m1_sub2", l), kb_back(l))
+        elif d == "m2": edit(c, mid, gt("m2_title", l), kb_m2(l))
+        elif d == "m2_1": edit(c, mid, gt("m2_sub1", l), kb_back(l))
